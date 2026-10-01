@@ -7,14 +7,16 @@ const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 // REGISTER NEW USER
 export const createUser = async (req, res) => {
-  const { name, email, password, role, department, companyName, companyId } =
-    req.body;
-
-  console.log({
+  const {
+    name,
+    email,
+    password,
+    confirmPassword,
     role,
+    department,
     companyName,
     companyId,
-  });
+  } = req.body;
 
   try {
     const normalizedEmail = email.toLowerCase();
@@ -29,6 +31,13 @@ export const createUser = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "User already exists",
+      });
+    }
+
+    if (password !== confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Passwords do not match",
       });
     }
 
@@ -317,7 +326,7 @@ export const getAllUsers = async (req, res) => {
     const filter = {
       role: "employee",
       company: req.user.company,
-      isDeleted: true,
+      isDeleted: false,
     };
 
     const users = await User.find(filter).select("-password");
