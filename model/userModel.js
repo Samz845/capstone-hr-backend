@@ -14,6 +14,7 @@ const userSchema = new mongoose.Schema(
       required: true,
       unique: true,
       lowercase: true,
+      trim: true,
     },
 
     role: {
@@ -23,7 +24,12 @@ const userSchema = new mongoose.Schema(
       default: "employee",
     },
 
-    // PASSWORD (OPTIONAL FOR GOOGLE USERS)
+    company: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Company",
+      default: null,
+    },
+
     password: {
       type: String,
       required: function () {
@@ -34,9 +40,9 @@ const userSchema = new mongoose.Schema(
     department: {
       type: String,
       default: "General",
+      trim: true,
     },
 
-    // 🔹 AUTH TYPE
     authType: {
       type: String,
       enum: ["local", "google"],
@@ -62,13 +68,16 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
-
-    dateJoined: {
+    isDeleted: {
+      type: Boolean,
+      default: false,
+    },
+    deletedAt: {
       type: Date,
-      default: Date.now,
+      default: null,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 // Hash password ONLY if it exists & changed
@@ -84,8 +93,10 @@ userSchema.pre("save", async function (next) {
 // Compare password ONLY for local users
 userSchema.methods.matchPassword = async function (enteredPassword) {
   if (this.authType !== "local" || !this.password) return false;
+
   return await bcrypt.compare(enteredPassword, this.password);
 };
 
 const User = mongoose.model("User", userSchema);
+
 export default User;

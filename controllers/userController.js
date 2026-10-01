@@ -1,66 +1,131 @@
 import User from "../model/userModel.js";
-import jwt from "jsonwebtoken";
 import { OAuth2Client } from "google-auth-library";
+import { generateToken } from "../helpers.js";
+import Company from "../model/companyModel.js";
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-// Generate JWT
-const generateToken = (user) => {
-  return jwt.sign(
-    { id: user._id, role: user.role },
-    process.env.JWT_SECRET,
-    { expiresIn: "7d" }
-  );
-};
-
 // REGISTER NEW USER
 export const createUser = async (req, res) => {
-  const { name, email, password, role, department } = req.body;
+  const { name, email, password, role, department, companyName, companyId } =
+    req.body;
+
+  console.log({
+    role,
+    companyName,
+    companyId,
+  });
 
   try {
-    const existingUser = await User.findOne({ email: email.toLowerCase() });
+    const normalizedEmail = email.toLowerCase();
+    const normalizedRole = role?.toLowerCase() || "employee";
+
+    // Check if user already exists
+    const existingUser = await User.findOne({
+      email: normalizedEmail,
+    });
+
     if (existingUser) {
-      return res.status(400).json({ success: false, message: "User already exists" });
+      return res.status(400).json({
+        success: false,
+        message: "User already exists",
+      });
+    }
+
+    let company = null;
+
+    // Admin/HR are allowed to create a company during registration
+    if (["admin", "hr"].includes(normalizedRole)) {
+      if (!companyName?.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: "Company name is required",
+        });
+      }
+
+      // Check if company already exists
+      company = await Company.findOne({
+        name: companyName.trim(),
+      });
+
+      if (company) {
+        return res.status(400).json({
+          success: false,
+          message: "Company already exists",
+        });
+      }
+
+      company = await Company.create({
+        name: companyName.trim(),
+      });
+    }
+
+    //Employee joins an existing Company
+    if (normalizedRole === "employee") {
+      if (!companyId) {
+        return res.status(400).json({
+          success: false,
+          message: "Company id is required",
+        });
+      }
+
+      company = await Company.findById(companyId);
+
+      if (!company) {
+        return res.status(404).json({
+          success: false,
+          message: "Company not found",
+        });
+      }
     }
 
     const newUser = await User.create({
       name,
-      email: email.toLowerCase(),
-      password, // raw password, will be hashed automatically
-      role: role?.toLowerCase() || "employee",
+      email: normalizedEmail,
+      password,
+      role: normalizedRole,
       department: department || "General",
+      company: company?._id || null,
     });
 
-    const token = generateToken(newUser);
+    generateToken(newUser, res);
 
     res.status(201).json({
       success: true,
       message: "User created successfully",
-      token,
       data: {
         _id: newUser._id,
         name: newUser.name,
         email: newUser.email,
         role: newUser.role,
         department: newUser.department,
+        company: newUser.company,
+        authType: newUser.authType,
+        createdAt: newUser.createdAt,
       },
     });
   } catch (error) {
     console.error("Create user error:", error);
-    res.status(500).json({ success: false, message: "Server error" });
+
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
   }
 };
 
 // LOGIN USER
 export const loginUser = async (req, res) => {
-  const { email, password, expectedRole } = req.body;
+  const { email, password } = req.body;
 
   try {
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const user = await User.findOne({ email: email.toLowerCase().trim() });
     if (!user) {
-      return res.status(400).json({ success: false, message: "Invalid email or password" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Invalid email or password" });
     }
- // BLOCK GOOGLE ACCOUNTS FROM PASSWORD LOGIN
+    // BLOCK GOOGLE ACCOUNTS FROM PASSWORD LOGIN
     if (user.authType === "google") {
       return res.status(400).json({
         success: false,
@@ -69,25 +134,24 @@ export const loginUser = async (req, res) => {
     }
     const isMatch = await user.matchPassword(password);
     if (!isMatch) {
-      return res.status(400).json({ success: false, message: "Invalid email or password" });
+      return res
+        .status(401)
+        .json({ success: false, message: "Invalid email or password" });
     }
 
-    if (expectedRole && user.role.toLowerCase() !== expectedRole.toLowerCase()) {
-      return res.status(403).json({ success: false, message: "Unauthorized role" });
-    }
-
-    const token = generateToken(user);
+    generateToken(user, res);
 
     res.json({
       success: true,
       message: "Logged in successfully",
-      token,
       data: {
         _id: user._id,
         name: user.name,
         email: user.email,
         role: user.role,
         department: user.department,
+        createdAt: user.createdAt,
+        company: user.company,
       },
     });
   } catch (error) {
@@ -99,10 +163,22 @@ export const loginUser = async (req, res) => {
 // GOOGLE AUTH LOGIN/SIGNUP
 export const googleAuth = async (req, res) => {
   try {
-    const { idToken } = req.body;
+    const { idToken, role, companyName, companyId } = req.body;
 
     if (!idToken) {
-      return res.status(400).json({ success: false, message: "No Google token provided" });
+      return res.status(400).json({
+        success: false,
+        message: "Google token is required",
+      });
+    }
+
+    const normalizedRole = role?.toLowerCase();
+
+    if (!["admin", "hr", "employee"].includes(normalizedRole)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid role",
+      });
     }
 
     // Verify Google token
@@ -112,42 +188,116 @@ export const googleAuth = async (req, res) => {
     });
 
     const payload = ticket.getPayload();
+
     const { email, name, picture } = payload;
 
-    // Check if user exists
-    let user = await User.findOne({ email });
+    // Check if user already exists
+    let user = await User.findOne({
+      email: email.toLowerCase(),
+    });
 
-    // If not, create new user
-    if (!user) {
-      user = await User.create({
-        name,
-        email,
-        password: Math.random().toString(36).slice(-8), // dummy password
-        role: "employee",
-        profileImage: picture,
-        department: "General",
+    // Existing user → login
+    if (user) {
+      generateToken(user, res);
+
+      return res.status(200).json({
+        success: true,
+        message: "Google authentication successful",
+        data: {
+          _id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          department: user.department,
+          company: user.company,
+          profileImage: user.profileImage,
+          authType: user.authType,
+          createdAt: user.createdAt,
+        },
       });
     }
 
-    const token = generateToken(user);
+    let company;
 
-    res.json({
+    // ADMIN / HR → create company
+    if (["admin", "hr"].includes(normalizedRole)) {
+      if (!companyName?.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: "Company name is required",
+        });
+      }
+
+      company = await Company.findOne({
+        name: companyName.trim(),
+      });
+
+      if (company) {
+        return res.status(400).json({
+          success: false,
+          message: "Company already exists",
+        });
+      }
+
+      company = await Company.create({
+        name: companyName.trim(),
+      });
+    }
+
+    // EMPLOYEE → join existing company
+    if (normalizedRole === "employee") {
+      if (!companyId) {
+        return res.status(400).json({
+          success: false,
+          message: "Company ID is required",
+        });
+      }
+
+      company = await Company.findById(companyId);
+
+      if (!company) {
+        return res.status(404).json({
+          success: false,
+          message: "Company not found",
+        });
+      }
+    }
+
+    // Create Google user
+    user = await User.create({
+      name,
+      email: email.toLowerCase(),
+      role: normalizedRole,
+      department: "General",
+      company: company._id,
+      profileImage: picture || "",
+      authType: "google",
+    });
+
+    generateToken(user, res);
+
+    res.status(201).json({
       success: true,
       message: "Google authentication successful",
-      token,
       data: {
         _id: user._id,
         name: user.name,
         email: user.email,
         role: user.role,
         department: user.department,
+        company: user.company,
         profileImage: user.profileImage,
+        authType: user.authType,
+        createdAt: user.createdAt,
       },
     });
-
   } catch (error) {
     console.error("Google auth error:", error);
-    res.status(500).json({ success: false, message: "Google authentication failed" });
+
+    res.status(500).json({
+      success: false,
+      message: "Google authentication failed",
+    });
   }
 };
 
@@ -164,7 +314,13 @@ export const getMe = async (req, res) => {
 // GET ALL USERS
 export const getAllUsers = async (req, res) => {
   try {
-    const users = await User.find().select("-password");
+    const filter = {
+      role: "employee",
+      company: req.user.company,
+      isDeleted: true,
+    };
+
+    const users = await User.find(filter).select("-password");
     res.json({ success: true, data: users });
   } catch (error) {
     console.error("Get all users error:", error);
@@ -175,8 +331,21 @@ export const getAllUsers = async (req, res) => {
 // GET USER BY ID
 export const getUserById = async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).select("-password");
-    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+    const userId = req.params.id;
+
+    const user = await User.findOne({
+      company: req.user.company,
+      _id: userId,
+      role: "employee",
+      isDeleted: false,
+    }).select("-password");
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
     res.json({ success: true, data: user });
   } catch (error) {
     console.error("Get user by ID error:", error);
@@ -187,11 +356,26 @@ export const getUserById = async (req, res) => {
 // UPDATE USER
 export const updateUser = async (req, res) => {
   try {
-    const updates = req.body;
-    const user = await User.findById(req.params.id);
-    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+    const allowedFields = [
+      "name",
+      "email",
+      "password",
+      "department",
+      "phone",
+      "address",
+      "profileImage",
+    ];
 
-    Object.assign(user, updates);
+    const user = req.targetUser;
+
+    for (const field of allowedFields) {
+      const value = req.body[field];
+      if (value !== undefined) {
+        Object.assign(user, {
+          [field]: value,
+        });
+      }
+    }
     await user.save();
 
     res.json({
@@ -202,6 +386,9 @@ export const updateUser = async (req, res) => {
         email: user.email,
         role: user.role,
         department: user.department,
+        updatedAt: user.updatedAt,
+        address: user.address,
+        phone: user.phone,
       },
     });
   } catch (error) {
@@ -213,8 +400,20 @@ export const updateUser = async (req, res) => {
 // DELETE USER
 export const deleteUser = async (req, res) => {
   try {
-    const deleted = await User.findByIdAndDelete(req.params.id);
-    if (!deleted) return res.status(404).json({ success: false, message: "User not found" });
+    const user = await User.findOne({
+      _id: req.params.id,
+      company: req.user.company,
+    });
+
+    if (!user)
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
+
+    user.isDeleted = true;
+    user.deletedAt = new Date();
+    await user.save();
+
     res.json({ success: true, message: "User deleted successfully" });
   } catch (error) {
     console.error("Delete user error:", error);

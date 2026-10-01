@@ -30,7 +30,7 @@ const progressSchema = new mongoose.Schema(
       type: Date,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 // Auto-set completedAt

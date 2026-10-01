@@ -14,6 +14,8 @@ import {
 
 // Google auth controller (separate file)
 import { googleAuth } from "../controllers/googleAuthController.js";
+import { authorizeRoles } from "../middleware/roleMiddleware.js";
+import { ownerShipCheck } from "../middleware/ownerShipCheck.js";
 
 const router = express.Router();
 
@@ -32,9 +34,9 @@ router.post("/google", googleAuth);
  * ===============================
  */
 router.get("/me", protect, getMe);
-router.get("/", protect, getAllUsers);
-router.get("/:id", protect, getUserById);
-router.put("/:id", protect, updateUser);
-router.delete("/:id", protect, deleteUser);
+router.get("/", protect, authorizeRoles("admin", "hr"), getAllUsers);
+router.get("/:id", protect, authorizeRoles("admin", "hr"), getUserById);
+router.patch("/:id", protect, ownerShipCheck, updateUser);
+router.delete("/:id", protect, authorizeRoles("admin", "hr"), deleteUser);
 
 export default router;
