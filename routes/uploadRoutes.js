@@ -6,16 +6,11 @@ import {
   uploadFile,
   getDocuments,
   reviewDocument,
-} from "../Controllers/uploadController.js";
+} from "../controllers/uploadController.js";
 
 const router = express.Router();
 
-router.post(
-  "/upload",
-  protect,
-  upload.single("document"),
-  uploadFile
-);
+router.post("/upload", protect, upload.single("document"), uploadFile);
 
 router.get("/", protect, getDocuments);
 
