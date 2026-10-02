@@ -10,6 +10,7 @@ import {
   getUserById,
   updateUser,
   deleteUser,
+  logOut,
 } from "../controllers/userController.js";
 
 // Google auth controller (separate file)
@@ -38,5 +39,6 @@ router.get("/", protect, authorizeRoles("admin", "hr"), getAllUsers);
 router.get("/:id", protect, authorizeRoles("admin", "hr"), getUserById);
 router.patch("/:id", protect, ownerShipCheck, updateUser);
 router.delete("/:id", protect, authorizeRoles("admin", "hr"), deleteUser);
+router.post("/logout", protect, logOut);
 
 export default router;
