@@ -19,6 +19,7 @@ const userSchema = new mongoose.Schema(
 
     role: {
       type: String,
+      trim: true,
       enum: ["employee", "manager", "admin", "hr", "intern"],
       lowercase: true,
       default: "employee",
@@ -62,6 +63,7 @@ const userSchema = new mongoose.Schema(
     address: {
       type: String,
       default: "",
+      trim: true,
     },
 
     profileImage: {

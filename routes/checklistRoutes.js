@@ -18,41 +18,31 @@ const router = express.Router();
 ======================= */
 
 // Create checklist template
-router.post(
-  "/",
-  protect,
-  authorizeRoles("hr", "admin"),
-  createChecklist
-);
+router.post("/", protect, authorizeRoles("hr", "admin"), createChecklist);
 
 // Add task to checklist
 router.post(
   "/:checklistId/tasks",
   protect,
   authorizeRoles("hr", "admin"),
-  addTaskToChecklist
+  addTaskToChecklist,
 );
 
 router.post(
   "/:checklistId/assign",
   protect,
   authorizeRoles("hr", "admin"),
-  assignChecklistToEmployee
+  assignChecklistToEmployee,
 );
 
 // Get all checklist templates
-router.get(
-  "/",
-  protect,
-  authorizeRoles("hr", "admin"),
-  getAllChecklists
-);
+router.get("/", protect, authorizeRoles("hr", "admin"), getAllChecklists);
 
 router.get(
   "/dashboard/overview",
   protect,
   authorizeRoles("hr", "admin"),
-  getAllEmployeesChecklistProgress
+  getAllEmployeesChecklistProgress,
 );
 
 /* =======================
@@ -64,7 +54,7 @@ router.get(
   "/my",
   protect,
   authorizeRoles("employee", "intern", "manager"),
-  getEmployeeChecklist
+  getEmployeeChecklist,
 );
 
 // Update own task progress
@@ -72,7 +62,7 @@ router.put(
   "/progress/:progressId",
   protect,
   authorizeRoles("employee", "intern", "manager"),
-  updateTaskProgress
+  updateTaskProgress,
 );
 
 export default router;

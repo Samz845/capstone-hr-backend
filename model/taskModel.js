@@ -17,6 +17,7 @@ const taskSchema = new mongoose.Schema(
     description: {
       type: String,
       default: "",
+      trim: true,
     },
 
     order: {
@@ -29,7 +30,7 @@ const taskSchema = new mongoose.Schema(
       default: false,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 taskSchema.index({ checklist: 1 });

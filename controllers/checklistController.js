@@ -6,15 +6,31 @@ import Progress from "../model/progressModel.js";
  * HR — Create checklist template
  */
 export const createChecklist = async (req, res) => {
+  const { title, description, department, tasks } = req.body;
   try {
     const checklist = await Checklist.create({
-      title: req.body.title,
-      description: req.body.description,
-      department: req.body.department || "All",
+      title,
+      description,
+      department,
       createdBy: req.user._id,
+      company: req.user.company,
     });
 
-    res.status(201).json({ success: true, data: checklist });
+    const createdTasks = await Task.insertMany(
+      tasks.map((task, index) => ({
+        title: task.title,
+        description: task.description,
+        checklist: checklist._id,
+        order: index,
+        requiresUpload: task.requiresUpload,
+      })),
+    );
+
+    res.status(201).json({
+      success: true,
+      message: "Checklist created successfully",
+      data: { checklist, tasks: createdTasks },
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({
@@ -28,14 +44,37 @@ export const createChecklist = async (req, res) => {
  * HR — Add task to checklist (template task)
  */
 export const addTaskToChecklist = async (req, res) => {
+  const { title, description, requiresUpload } = req.body;
   try {
-    const task = await Task.create({
-      title: req.body.title,
-      description: req.body.description,
-      checklist: req.params.checklistId,
+    const checklist = await Checklist.findOne({
+      _id: req.params.checklistId,
+      company: req.user.company,
     });
 
-    res.status(201).json({ success: true, data: task });
+    if (!checklist) {
+      return res.status(404).json({
+        success: false,
+        message: "Checklist not found",
+      });
+    }
+
+    const lastTask = await Task.findOne({
+      checklist: checklist._id,
+    }).sort({ order: -1 });
+
+    const order = lastTask ? lastTask.order + 1 : 0;
+
+    const task = await Task.create({
+      title,
+      description,
+      checklist: checklist._id,
+      order,
+      requiresUpload,
+    });
+
+    res
+      .status(201)
+      .json({ success: true, message: "Task added successfully", data: task });
   } catch (error) {
     console.error(error);
     res.status(500).json({
@@ -81,7 +120,7 @@ export const assignChecklistToEmployee = async (req, res) => {
       });
     }
 
-    const progressDocs = tasks.map(task => ({
+    const progressDocs = tasks.map((task) => ({
       employee: employeeId,
       checklist: checklistId,
       task: task._id,
@@ -134,7 +173,7 @@ export const getAllEmployeesChecklistProgress = async (req, res) => {
 
     const report = {};
 
-    progress.forEach(p => {
+    progress.forEach((p) => {
       const key = `${p.employee._id}-${p.checklist._id}`;
 
       if (!report[key]) {
@@ -153,14 +192,12 @@ export const getAllEmployeesChecklistProgress = async (req, res) => {
       }
     });
 
-    const result = Object.values(report).map(r => ({
+    const result = Object.values(report).map((r) => ({
       employee: r.employee,
       checklist: r.checklist,
       totalTasks: r.totalTasks,
       completedTasks: r.completedTasks,
-      completionPercentage: Math.round(
-        (r.completedTasks / r.totalTasks) * 100
-      ),
+      completionPercentage: Math.round((r.completedTasks / r.totalTasks) * 100),
     }));
 
     res.json({
@@ -175,7 +212,6 @@ export const getAllEmployeesChecklistProgress = async (req, res) => {
     });
   }
 };
-
 
 /**
  * EMPLOYEE — Get own checklist progress

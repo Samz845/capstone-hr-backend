@@ -22,7 +22,7 @@ export const addProgress = async (req, res) => {
 
     const progress = await Progress.create({
       task: taskId,
-      user: userId,
+      employee: userId,
       status: status || "In Progress",
       remarks: remarks || "No remarks provided",
       progressPercent: progressPercent ?? 0,
@@ -52,7 +52,6 @@ export const addProgress = async (req, res) => {
     });
   }
 };
-
 
 /**
  * ==========================================
@@ -93,7 +92,6 @@ export const updateProgressStatus = async (req, res) => {
   }
 };
 
-
 /**
  * ==========================================
  * Get Progress By Task
@@ -128,7 +126,6 @@ export const getProgressByTask = async (req, res) => {
     });
   }
 };
-
 
 /**
  * ==========================================

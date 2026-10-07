@@ -11,11 +11,13 @@ const checklistSchema = new mongoose.Schema(
     description: {
       type: String,
       default: "",
+      trim: true,
     },
 
     department: {
       type: String,
       default: "All",
+      trim: true,
     },
 
     isActive: {
@@ -28,8 +30,13 @@ const checklistSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    company: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Company",
+      required: true,
+    },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 export default mongoose.model("Checklist", checklistSchema);
