@@ -147,11 +147,33 @@ export const assignChecklistToEmployee = async (req, res) => {
  */
 export const getAllChecklists = async (req, res) => {
   try {
-    const checklists = await Checklist.find({
-      company: req.user.company,
-      createdBy: req.user._id,
-    }).sort({ createdAt: -1 });
-    
+    const checklists = await Checklist.aggregate([
+      {
+        $match: {
+          company: req.user.company,
+          createdBy: req.user._id,
+        },
+      },
+      {
+        $lookup: {
+          from: "tasks",
+          localField: "_id",
+          foreignField: "checklist",
+          as: "tasks",
+        },
+      },
+      {
+        $addFields: {
+          taskCount: { $size: "$tasks" },
+        },
+      },
+      {
+        $project: {
+          tasks: 0,
+        },
+      },
+    ]);
+
     res.json({ success: true, data: checklists });
   } catch (error) {
     res.status(500).json({
