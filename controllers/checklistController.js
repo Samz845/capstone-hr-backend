@@ -147,7 +147,11 @@ export const assignChecklistToEmployee = async (req, res) => {
  */
 export const getAllChecklists = async (req, res) => {
   try {
-    const checklists = await Checklist.find().sort({ createdAt: -1 });
+    const checklists = await Checklist.find({
+      company: req.user.company,
+      createdBy: req.user._id,
+    }).sort({ createdAt: -1 });
+    
     res.json({ success: true, data: checklists });
   } catch (error) {
     res.status(500).json({
