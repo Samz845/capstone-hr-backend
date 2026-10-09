@@ -129,7 +129,7 @@ export const assignChecklistToEmployee = async (req, res) => {
 
     await Progress.insertMany(progressDocs);
 
-    res.json({
+    res.status(200).json({
       success: true,
       message: "Checklist assigned successfully",
     });
@@ -156,7 +156,7 @@ export const getAllChecklists = async (req, res) => {
       },
       {
         $lookup: {
-          from: "tasks",
+          from: Task.collection.name,
           localField: "_id",
           foreignField: "checklist",
           as: "tasks",
@@ -167,14 +167,50 @@ export const getAllChecklists = async (req, res) => {
           taskCount: { $size: "$tasks" },
         },
       },
+
+      {
+        $lookup: {
+          from: Progress.collection.name,
+          let: { checklistId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $eq: ["$checklist", "$$checklistId"],
+                },
+              },
+            },
+            {
+              $group: {
+                _id: "$employee",
+              },
+            },
+            {
+              $count: "total",
+            },
+          ],
+          as: "assignedEmployees",
+        },
+      },
+      {
+        $addFields: {
+          assignedEmployeeCount: {
+            $ifNull: [{ $arrayElemAt: ["$assignedEmployees.total", 0] }, 0],
+          },
+        },
+      },
       {
         $project: {
           tasks: 0,
+          assignedEmployees: 0,
         },
       },
     ]);
 
-    res.json({ success: true, data: checklists });
+    res.status(200).json({
+      success: true,
+      data: checklists,
+    });
   } catch (error) {
     res.status(500).json({
       success: false,
