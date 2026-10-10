@@ -92,7 +92,10 @@ export const assignChecklistToEmployee = async (req, res) => {
     const { employeeId } = req.body;
     const { checklistId } = req.params;
 
-    const checklist = await Checklist.findById(checklistId);
+    const checklist = await Checklist.findOne({
+      _id: checklistId,
+      company: req.user.company,
+    });
     if (!checklist) {
       return res.status(404).json({
         success: false,
@@ -100,7 +103,10 @@ export const assignChecklistToEmployee = async (req, res) => {
       });
     }
 
-    const tasks = await Task.find({ checklist: checklistId });
+    const tasks = await Task.find({
+      checklist: checklistId,
+    });
+
     if (!tasks.length) {
       return res.status(400).json({
         success: false,
@@ -111,6 +117,7 @@ export const assignChecklistToEmployee = async (req, res) => {
     const alreadyAssigned = await Progress.findOne({
       employee: employeeId,
       checklist: checklistId,
+      company: req.user.company,
     });
 
     if (alreadyAssigned) {
@@ -123,15 +130,17 @@ export const assignChecklistToEmployee = async (req, res) => {
     const progressDocs = tasks.map((task) => ({
       employee: employeeId,
       checklist: checklistId,
+      company: req.user.company,
       task: task._id,
       status: "pending",
     }));
 
-    await Progress.insertMany(progressDocs);
+    const progress = await Progress.insertMany(progressDocs);
 
     res.status(200).json({
       success: true,
       message: "Checklist assigned successfully",
+      data: progress,
     });
   } catch (error) {
     console.error(error);

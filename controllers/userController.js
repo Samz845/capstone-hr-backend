@@ -2,6 +2,7 @@ import User from "../model/userModel.js";
 import { OAuth2Client } from "google-auth-library";
 import { generateToken } from "../helpers.js";
 import Company from "../model/companyModel.js";
+import Progress from "../model/progressModel.js";
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -16,6 +17,8 @@ export const createUser = async (req, res) => {
     department,
     companyName,
     companyId,
+    jobTitle,
+    contractType,
   } = req.body;
 
   try {
@@ -95,6 +98,8 @@ export const createUser = async (req, res) => {
       role: normalizedRole,
       department: department || "General",
       company: company?._id || null,
+      jobTitle,
+      contractType,
     });
 
     generateToken(newUser, res);
@@ -111,6 +116,8 @@ export const createUser = async (req, res) => {
         company: newUser.company,
         authType: newUser.authType,
         createdAt: newUser.createdAt,
+        jobTitle: newUser.jobTitle,
+        contractType: newUser.contractType,
       },
     });
   } catch (error) {
@@ -330,10 +337,54 @@ export const getAllUsers = async (req, res) => {
     };
 
     const users = await User.find(filter).select("-password");
-    res.json({ success: true, data: users });
+
+    const employees = await Promise.all(
+      users.map(async (user) => {
+        const progressRecords = await Progress.find({
+          employee: user._id,
+        }).select("status");
+
+        const totalTasks = progressRecords.length;
+
+        const completedTasks = progressRecords.filter(
+          (task) => task.status === "completed",
+        ).length;
+
+        const startedTasks = progressRecords.some(
+          (task) =>
+            task.status === "in_progress" || task.status === "completed",
+        );
+
+        const progress =
+          totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+        let status = "not started";
+
+        if (totalTasks > 0 && completedTasks === totalTasks) {
+          status = "completed";
+        } else if (startedTasks) {
+          status = "in-progress";
+        }
+
+        return {
+          ...user.toObject(),
+          progress,
+          status,
+        };
+      }),
+    );
+
+    res.json({
+      success: true,
+      data: employees,
+    });
   } catch (error) {
     console.error("Get all users error:", error);
-    res.status(500).json({ success: false, message: "Server error" });
+
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
   }
 };
 

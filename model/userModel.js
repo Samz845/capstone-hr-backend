@@ -29,6 +29,7 @@ const userSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Company",
       default: null,
+      trim: true,
     },
 
     password: {
@@ -36,6 +37,7 @@ const userSchema = new mongoose.Schema(
       required: function () {
         return this.authType === "local";
       },
+      trim: true,
     },
 
     department: {
@@ -77,6 +79,16 @@ const userSchema = new mongoose.Schema(
     deletedAt: {
       type: Date,
       default: null,
+    },
+    jobTitle: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    contractType: {
+      type: String,
+      enum: ["Full-time", "Part-time", "Contract", "Internship"],
+      default: "Full-time",
     },
   },
   { timestamps: true },

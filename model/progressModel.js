@@ -20,6 +20,12 @@ const progressSchema = new mongoose.Schema(
       required: true,
     },
 
+    company: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Company",
+      required: true,
+    },
+
     status: {
       type: String,
       enum: ["pending", "in_progress", "completed"],
@@ -41,4 +47,5 @@ progressSchema.pre("save", function (next) {
   next();
 });
 
-export default mongoose.model("Progress", progressSchema);
+const Progress = mongoose.model("Progress", progressSchema);
+export default Progress;
