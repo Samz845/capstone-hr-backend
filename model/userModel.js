@@ -89,6 +89,7 @@ const userSchema = new mongoose.Schema(
       type: String,
       enum: ["Full-time", "Part-time", "Contract", "Internship"],
       default: "Full-time",
+      lowercase: true,
     },
   },
   { timestamps: true },
