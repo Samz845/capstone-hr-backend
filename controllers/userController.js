@@ -125,7 +125,7 @@ export const createUser = async (req, res) => {
 
     res.status(500).json({
       success: false,
-      message: "Server error",
+      message: error.message || "Server error",
     });
   }
 };
@@ -424,6 +424,9 @@ export const updateUser = async (req, res) => {
       "phone",
       "address",
       "profileImage",
+      "jobTitle",
+      "status",
+      "contractType",
     ];
 
     const user = req.targetUser;
