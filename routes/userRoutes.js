@@ -11,6 +11,7 @@ import {
   updateUser,
   deleteUser,
   logOut,
+  getUsersWithOverview,
 } from "../controllers/userController.js";
 
 // Google auth controller (separate file)
@@ -35,7 +36,8 @@ router.post("/google", googleAuth);
  * ===============================
  */
 router.get("/me", protect, getMe);
-router.get("/", protect, authorizeRoles("admin", "hr"), getAllUsers);
+router.get("/", protect, authorizeRoles("admin", "hr", getUsersWithOverview));
+router.get("/admin", protect, authorizeRoles("admin", "hr"), getAllUsers);
 router.get("/:id", protect, authorizeRoles("admin", "hr"), getUserById);
 router.patch("/:id", protect, ownerShipCheck, updateUser);
 router.delete("/:id", protect, authorizeRoles("admin", "hr"), deleteUser);

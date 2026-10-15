@@ -327,6 +327,82 @@ export const getMe = async (req, res) => {
   }
 };
 
+export const getUsersWithOverview = async (req, res) => {
+  try {
+    const filter = {
+      role: "employee",
+      company: req.user.company,
+      isDeleted: false,
+    };
+
+    const users = await User.find(filter).select("-password").lean();
+
+    const userIds = users.map((user) => user._id);
+
+    const progressRecords = await Progress.find({
+      employee: { $in: userIds },
+    })
+      .select("employee status")
+      .lean();
+
+    // Group progress records by employee
+    const progressByEmployee = new Map();
+
+    for (const record of progressRecords) {
+      const employeeId = record.employee.toString();
+
+      if (!progressByEmployee.has(employeeId)) {
+        progressByEmployee.set(employeeId, []);
+      }
+
+      progressByEmployee.get(employeeId).push(record.status);
+    }
+
+    const employeesWithProgress = users.map((user) => {
+      const records = progressByEmployee.get(user._id.toString()) ?? [];
+
+      const totalTasks = records.length;
+
+      const completedTasks = records.filter(
+        (status) => status === "completed",
+      ).length;
+
+      const startedTasks = records.some(
+        (status) => status === "in_progress" || status === "completed",
+      );
+
+      const progress =
+        totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+      let status = "not started";
+
+      if (totalTasks > 0 && completedTasks === totalTasks) {
+        status = "completed";
+      } else if (startedTasks) {
+        status = "in-progress";
+      }
+
+      return {
+        ...user,
+        progress,
+        status,
+      };
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: employeesWithProgress,
+    });
+  } catch (error) {
+    console.error("Get users overview error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
+
 // GET ALL USERS
 export const getAllUsers = async (req, res) => {
   try {
@@ -416,7 +492,7 @@ export const getAllUsers = async (req, res) => {
     const skip = (page - 1) * limit;
     const employees = filteredEmployees.slice(skip, skip + limit);
 
-    res.json({
+    res.status(200).json({
       success: true,
       data: employees,
       pages: {
