@@ -35,9 +35,9 @@ router.post("/google", googleAuth);
  * Protected Routes
  * ===============================
  */
-router.get("/me", protect, getMe);
-router.get("/", protect, authorizeRoles("admin", "hr", getUsersWithOverview));
+router.get("/", protect, authorizeRoles("admin", "hr"), getUsersWithOverview);
 router.get("/admin", protect, authorizeRoles("admin", "hr"), getAllUsers);
+router.get("/me", protect, getMe);
 router.get("/:id", protect, authorizeRoles("admin", "hr"), getUserById);
 router.patch("/:id", protect, ownerShipCheck, updateUser);
 router.delete("/:id", protect, authorizeRoles("admin", "hr"), deleteUser);
