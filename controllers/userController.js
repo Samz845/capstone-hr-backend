@@ -335,10 +335,38 @@ export const getAllUsers = async (req, res) => {
       company: req.user.company,
       isDeleted: false,
     };
+    const status = req.query.status || "all";
 
-    const users = await User.find(filter).select("-password");
+    //sorting
+    const allowedSortFields = ["name", "department", "createdAt"];
+    const requestedSort = req.query.sortBy;
+    const sortBy = allowedSortFields.includes(requestedSort)
+      ? requestedSort
+      : "createdAt";
+    const order = req.query.order === "asc" ? 1 : -1;
+    const sortObj = {};
+    sortObj[sortBy] = order;
 
-    const employees = await Promise.all(
+    const requestedPage = Number(req.query.page) || 1;
+    const requestedLimit = Number(req.query.limit) || 5;
+    if (
+      !Number.isInteger(requestedPage) ||
+      !Number.isInteger(requestedLimit) ||
+      requestedPage < 1 ||
+      requestedLimit < 1
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Page and limit must be positive integers",
+      });
+    }
+
+    const page = requestedPage;
+    const limit = Math.min(requestedLimit, 100);
+
+    const users = await User.find(filter).sort(sortObj).select("-password");
+
+    const employeesWithProgress = await Promise.all(
       users.map(async (user) => {
         const progressRecords = await Progress.find({
           employee: user._id,
@@ -374,9 +402,29 @@ export const getAllUsers = async (req, res) => {
       }),
     );
 
+    //filtering
+    const filteredEmployees =
+      status === "all"
+        ? employeesWithProgress
+        : employeesWithProgress.filter(
+            (employee) => employee.status === status,
+          );
+
+    //pagination
+    const totalEmployees = filteredEmployees.length;
+    const totalPages = Math.ceil(totalEmployees / limit);
+    const skip = (page - 1) * limit;
+    const employees = filteredEmployees.slice(skip, skip + limit);
+
     res.json({
       success: true,
       data: employees,
+      pages: {
+        currentPage: page,
+        limit,
+        totalPages,
+        totalEmployees,
+      },
     });
   } catch (error) {
     console.error("Get all users error:", error);
