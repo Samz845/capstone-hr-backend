@@ -412,6 +412,16 @@ export const getAllUsers = async (req, res) => {
       isDeleted: false,
     };
     const status = req.query.status || "all";
+    const search = req.query.search.trim();
+
+    //search
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { department: { $regex: search, $options: "i" } },
+        { email: { $regex: search, $options: "i" } },
+      ];
+    }
 
     //sorting
     const allowedSortFields = ["name", "department", "createdAt"];
