@@ -412,7 +412,7 @@ export const getAllUsers = async (req, res) => {
       isDeleted: false,
     };
     const status = req.query.status || "all";
-    const search = req.query.search.trim();
+    const search = req.query.search?.trim() || "";
 
     //search
     if (search) {
