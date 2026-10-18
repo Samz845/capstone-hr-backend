@@ -3,9 +3,15 @@ import User from "../model/userModel.js";
 
 export const protect = async (req, res, next) => {
   try {
-    console.log("Request origin:", req.headers.origin);
-    console.log("Token cookie received:", Boolean(req.cookies?.token));
-    const token = req.cookies?.token;
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({
+        success: false,
+        message: "Not authorized, no token",
+      });
+    }
+
+    const token = authHeader.split(" ")[1];
 
     if (!token) {
       return res

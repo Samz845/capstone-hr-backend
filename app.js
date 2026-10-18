@@ -11,10 +11,8 @@ import eventRoutes from "./routes/eventRoutes.js";
 import progressRoutes from "./routes/progressRoutes.js";
 import uploadRoutes from "./routes/uploadRoutes.js";
 import messageRoutes from "./routes/messageRoutes.js";
-import cookieParser from "cookie-parser";
 
 const app = express();
-app.set("trust proxy", 1);
 
 const allowedOrigins = [
   "http://localhost:5173",
@@ -32,8 +30,6 @@ app.use(
 );
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-app.use(cookieParser());
 
 app.get("/", (req, res) => {
   res.json({ success: true, message: "Capstone Project HR API is running..." });

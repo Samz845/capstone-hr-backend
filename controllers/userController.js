@@ -102,10 +102,11 @@ export const createUser = async (req, res) => {
       contractType,
     });
 
-    generateToken(newUser, res);
+    const token = generateToken(newUser);
 
     res.status(201).json({
       success: true,
+      token,
       message: "User created successfully",
       data: {
         _id: newUser._id,
@@ -155,10 +156,11 @@ export const loginUser = async (req, res) => {
         .json({ success: false, message: "Invalid email or password" });
     }
 
-    generateToken(user, res);
+    const token = generateToken(user);
 
     res.json({
       success: true,
+      token,
       message: "Logged in successfully",
       data: {
         _id: user._id,
@@ -214,10 +216,11 @@ export const googleAuth = async (req, res) => {
 
     // Existing user → login
     if (user) {
-      generateToken(user, res);
+      const token = generateToken(user);
 
       return res.status(200).json({
         success: true,
+        token,
         message: "Google authentication successful",
         data: {
           _id: user._id,
@@ -290,10 +293,11 @@ export const googleAuth = async (req, res) => {
       authType: "google",
     });
 
-    generateToken(user, res);
+    const token = generateToken(user);
 
     res.status(201).json({
       success: true,
+      token,
       message: "Google authentication successful",
       data: {
         _id: user._id,
