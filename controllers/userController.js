@@ -456,41 +456,55 @@ export const getAllUsers = async (req, res) => {
 
     const users = await User.find(filter).sort(sortObj).select("-password");
 
-    const employeesWithProgress = await Promise.all(
-      users.map(async (user) => {
-        const progressRecords = await Progress.find({
-          employee: user._id,
-        }).select("status");
+    const userIds = users.map((user) => user._id);
 
-        const totalTasks = progressRecords.length;
+    const progressRecords = await Progress.find({
+      employee: { $in: userIds },
+    })
+      .select("employee status")
+      .lean();
 
-        const completedTasks = progressRecords.filter(
-          (task) => task.status === "completed",
-        ).length;
+    const progressByEmployee = new Map();
 
-        const startedTasks = progressRecords.some(
-          (task) =>
-            task.status === "in_progress" || task.status === "completed",
-        );
+    for (const record of progressRecords) {
+      const employeeId = record.employee.toString();
 
-        const progress =
-          totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+      if (!progressByEmployee.has(employeeId)) {
+        progressByEmployee.set(employeeId, []);
+      }
 
-        let status = "not started";
+      progressByEmployee.get(employeeId).push(record.status);
+    }
 
-        if (totalTasks > 0 && completedTasks === totalTasks) {
-          status = "completed";
-        } else if (startedTasks) {
-          status = "in-progress";
-        }
+    const employeesWithProgress = users.map((user) => {
+      const records = progressByEmployee.get(user._id.toString()) ?? [];
+      const totalTasks = records.length;
 
-        return {
-          ...user.toObject(),
-          progress,
-          status,
-        };
-      }),
-    );
+      const completedTasks = records.filter(
+        (task) => task.status === "completed",
+      ).length;
+
+      const startedTasks = records.some(
+        (task) => task.status === "in_progress" || task.status === "completed",
+      );
+
+      const progress =
+        totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+      let status = "not started";
+
+      if (totalTasks > 0 && completedTasks === totalTasks) {
+        status = "completed";
+      } else if (startedTasks) {
+        status = "in-progress";
+      }
+
+      return {
+        ...user.toObject(),
+        progress,
+        status,
+      };
+    });
 
     //filtering
     const filteredEmployees =
@@ -536,7 +550,9 @@ export const getUserById = async (req, res) => {
       _id: userId,
       role: "employee",
       isDeleted: false,
-    }).select("-password");
+    })
+      .select("-password")
+      .lean();
 
     if (!user) {
       return res.status(404).json({
@@ -544,7 +560,34 @@ export const getUserById = async (req, res) => {
         message: "User not found",
       });
     }
-    res.json({ success: true, data: user });
+
+    const records = await Progress.find({
+      employee: userId,
+    }).select("status").lean();
+
+    const totalTasks = records.length;
+    const completedTasks = records.filter(
+      (task) => task.status === "completed",
+    ).length;
+
+    const startedTasks = records.some(
+      (task) => task.status === "in_progress" || task.status === "completed",
+    );
+
+    const progress =
+      totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+    let status = "not started";
+
+    if (totalTasks > 0 && completedTasks === totalTasks) {
+      status = "completed";
+    } else if (startedTasks) {
+      status = "in-progress";
+    }
+    res.json({
+      success: true,
+      data: { ...user, progress, status, completedTasks, totalTasks },
+    });
   } catch (error) {
     console.error("Get user by ID error:", error);
     res.status(500).json({ success: false, message: "Server error" });
