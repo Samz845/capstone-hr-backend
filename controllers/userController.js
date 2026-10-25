@@ -563,7 +563,10 @@ export const getUserById = async (req, res) => {
 
     const records = await Progress.find({
       employee: userId,
-    }).select("status").lean();
+    })
+      .populate("task", "_id title")
+      .select("status task")
+      .lean();
 
     const totalTasks = records.length;
     const completedTasks = records.filter(
@@ -586,7 +589,7 @@ export const getUserById = async (req, res) => {
     }
     res.json({
       success: true,
-      data: { ...user, progress, status, completedTasks, totalTasks },
+      data: { ...user, progress, status, completedTasks, totalTasks, records },
     });
   } catch (error) {
     console.error("Get user by ID error:", error);
