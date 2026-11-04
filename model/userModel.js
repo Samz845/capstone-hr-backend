@@ -31,11 +31,38 @@ const userSchema = new mongoose.Schema(
       default: null,
       trim: true,
     },
+    accountStatus: {
+      type: String,
+      enum: ["invited", "active", "suspended"],
+      default: "active",
+    },
+
+    invitationToken: {
+      type: String,
+      default: null,
+      select: false,
+    },
+
+    invitationExpires: {
+      type: Date,
+      default: null,
+      select: false,
+    },
+
+    invitedAt: {
+      type: Date,
+      default: null,
+    },
+
+    activatedAt: {
+      type: Date,
+      default: null,
+    },
 
     password: {
       type: String,
       required: function () {
-        return this.authType === "local";
+        return this.authType === "local" && this.accountStatus === "active";
       },
       trim: true,
     },

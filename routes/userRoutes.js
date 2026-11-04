@@ -3,7 +3,6 @@ import { protect } from "../middleware/authMiddleware.js";
 
 // User controllers
 import {
-  createUser,
   loginUser,
   getMe,
   getAllUsers,
@@ -12,6 +11,10 @@ import {
   deleteUser,
   logOut,
   getUsersWithOverview,
+  createAdmin,
+  inviteEmployee,
+  verifyInvitation,
+  completeRegistration,
 } from "../controllers/userController.js";
 
 // Google auth controller (separate file)
@@ -26,7 +29,7 @@ const router = express.Router();
  * Public Routes
  * ===============================
  */
-router.post("/register", createUser);
+router.post("/register", createAdmin);
 router.post("/login", loginUser);
 router.post("/google", googleAuth);
 
@@ -38,9 +41,11 @@ router.post("/google", googleAuth);
 router.get("/", protect, authorizeRoles("admin", "hr"), getUsersWithOverview);
 router.get("/admin", protect, authorizeRoles("admin", "hr"), getAllUsers);
 router.get("/me", protect, getMe);
+router.get("/invitation/:token", verifyInvitation);
+router.post("/complete-registration", completeRegistration);
 router.get("/:id", protect, authorizeRoles("admin", "hr"), getUserById);
 router.patch("/:id", protect, ownerShipCheck, updateUser);
 router.delete("/:id", protect, authorizeRoles("admin", "hr"), deleteUser);
 router.post("/logout", protect, logOut);
-
+router.post("/invite", protect, authorizeRoles("admin", "hr"), inviteEmployee);
 export default router;

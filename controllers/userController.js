@@ -3,11 +3,13 @@ import { OAuth2Client } from "google-auth-library";
 import { generateToken } from "../helpers.js";
 import Company from "../model/companyModel.js";
 import Progress from "../model/progressModel.js";
+import crypto from "crypto";
+import { sendInvitationEmail } from "../utils/sendEmail.js";
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-// REGISTER NEW USER
-export const createUser = async (req, res) => {
+// REGISTER NEW ADMIN
+export const createAdmin = async (req, res) => {
   const {
     name,
     email,
@@ -16,9 +18,6 @@ export const createUser = async (req, res) => {
     role,
     department,
     companyName,
-    companyId,
-    jobTitle,
-    contractType,
   } = req.body;
 
   try {
@@ -34,6 +33,13 @@ export const createUser = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "User already exists",
+      });
+    }
+
+    if (!["admin", "hr"].includes(normalizedRole)) {
+      return res.status(403).json({
+        success: false,
+        message: "Employee accounts must be created through an invitation",
       });
     }
 
@@ -72,25 +78,6 @@ export const createUser = async (req, res) => {
       });
     }
 
-    //Employee joins an existing Company
-    if (normalizedRole === "employee") {
-      if (!companyId) {
-        return res.status(400).json({
-          success: false,
-          message: "Company id is required",
-        });
-      }
-
-      company = await Company.findById(companyId);
-
-      if (!company) {
-        return res.status(404).json({
-          success: false,
-          message: "Company not found",
-        });
-      }
-    }
-
     const newUser = await User.create({
       name,
       email: normalizedEmail,
@@ -98,8 +85,8 @@ export const createUser = async (req, res) => {
       role: normalizedRole,
       department: department || "General",
       company: company?._id || null,
-      jobTitle,
-      contractType,
+      accountStatus: "active",
+      activatedAt: new Date(),
     });
 
     const token = generateToken(newUser);
@@ -117,8 +104,7 @@ export const createUser = async (req, res) => {
         company: newUser.company,
         authType: newUser.authType,
         createdAt: newUser.createdAt,
-        jobTitle: newUser.jobTitle,
-        contractType: newUser.contractType,
+        accountStatus: newUser.accountStatus,
       },
     });
   } catch (error) {
@@ -679,4 +665,174 @@ export const logOut = (req, res) => {
     success: true,
     message: "User logged out successfully",
   });
+};
+
+export const inviteEmployee = async (req, res) => {
+  try {
+    const { name, email, department, jobTitle, contractType } = req.body;
+    if (!name || !email || !jobTitle || !contractType) {
+      return res
+        .status(400)
+        .json({ success: false, message: "All fields are required" });
+    }
+
+    if (!req.user.company) {
+      return res.status(400).json({
+        success: false,
+        message: "You must be associated with a company to invite employees",
+      });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    const existingUser = await User.findOne({ email: normalizedEmail });
+
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: "User with this email already exists",
+      });
+    }
+
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(rawToken)
+      .digest("hex");
+
+    const invitationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    const employee = await User.create({
+      name,
+      email: normalizedEmail,
+      role: "employee",
+      company: req.user.company,
+      department: department || "General",
+      jobTitle,
+      contractType: contractType || "Full-time",
+      authType: "local",
+      accountStatus: "invited",
+      invitationToken: hashedToken,
+      invitationExpires,
+      invitedAt: new Date(),
+    });
+
+    const invitationLink = `${process.env.Client_URL}/accept-invite?token=${rawToken}`;
+    console.log("Invitation link:", invitationLink);
+    // await sendInvitationEmail(normalizedEmail, invitationLink, name);
+
+    return res.status(201).json({
+      success: true,
+      message: "Invitation sent successfully",
+      data: {
+        _id: employee._id,
+        name: employee.name,
+        email: employee.email,
+        role: employee.role,
+        department: employee.department,
+        jobTitle: employee.jobTitle,
+        accountStatus: employee.accountStatus,
+        invitedAt: employee.invitedAt,
+        invitationExpires: employee.invitationExpires,
+        invitationToken: employee.invitationToken,
+      },
+    });
+  } catch (error) {
+    console.error("Invite employee error:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+export const verifyInvitation = async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
+    const employee = await User.findOne({
+      invitationToken: hashedToken,
+      invitationExpires: { $gt: new Date() },
+      accountStatus: "invited",
+    }).select("name email department jobTitle");
+
+    if (!employee) {
+      return res.status(400).json({
+        success: false,
+        message: "Invitation link is invalid or has expired.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Invitation verified successfully",
+      data: employee,
+    });
+  } catch (error) {
+    console.error("Verify invitation error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to verify invitation",
+    });
+  }
+};
+
+export const completeRegistration = async (req, res) => {
+  try {
+    const { token, password, confirmPassword } = req.body;
+
+    if (!token || !password || !confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Token, password and confirmation are required",
+      });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: "Password must be at least 8 characters",
+      });
+    }
+
+    if (password !== confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Passwords do not match",
+      });
+    }
+
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
+    const employee = await User.findOne({
+      invitationToken: hashedToken,
+      invitationExpires: { $gt: new Date() },
+      accountStatus: "invited",
+    });
+
+    if (!employee) {
+      return res.status(400).json({
+        success: false,
+        message: "Invitation link is invalid or has expired",
+      });
+    }
+
+    employee.password = password;
+    employee.accountStatus = "active";
+    employee.activatedAt = new Date();
+
+    employee.invitationToken = null;
+    employee.invitationExpires = null;
+
+    await employee.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Registration completed successfully. You can now log in.",
+    });
+  } catch (error) {
+    console.error("Complete registration error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to complete registration",
+    });
+  }
 };
