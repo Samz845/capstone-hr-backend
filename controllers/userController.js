@@ -716,7 +716,7 @@ export const inviteEmployee = async (req, res) => {
       invitedAt: new Date(),
     });
 
-    const invitationLink = `${process.env.Client_URL}/accept-invite?token=${rawToken}`;
+    const invitationLink = `${process.env.Client_URL}/accept-invite/${rawToken}`;
     console.log("Invitation link:", invitationLink);
     // await sendInvitationEmail(normalizedEmail, invitationLink, name);
 
@@ -833,6 +833,76 @@ export const completeRegistration = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Unable to complete registration",
+    });
+  }
+};
+
+export const resendInvitation = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Find the employee within the admin's company
+    const employee = await User.findOne({
+      _id: id,
+      company: req.user.company,
+      role: "employee",
+    });
+
+    if (!employee) {
+      return res.status(404).json({
+        success: false,
+        message: "Employee not found",
+      });
+    }
+
+    // Only invited employees can receive another invitation
+    if (employee.accountStatus !== "invited") {
+      return res.status(400).json({
+        success: false,
+        message: "This employee does not have a pending invitation",
+      });
+    }
+
+    // Generate a new invitation token
+    const rawToken = crypto.randomBytes(32).toString("hex");
+
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(rawToken)
+      .digest("hex");
+
+    // Set a fresh 24-hour expiry
+    const invitationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    // Replace the old invitation details
+    employee.invitationToken = hashedToken;
+    employee.invitationExpires = invitationExpires;
+    employee.invitedAt = new Date();
+
+    await employee.save();
+
+    const invitationLink = `${process.env.CLIENT_URL}/accept-invite/${rawToken}`;
+
+    console.log("Resent invitation link:", invitationLink);
+
+    return res.status(200).json({
+      success: true,
+      message: "Invitation link resent successfully",
+      data: {
+        _id: employee._id,
+        name: employee.name,
+        email: employee.email,
+        accountStatus: employee.accountStatus,
+        invitedAt: employee.invitedAt,
+        invitationExpires: employee.invitationExpires,
+      },
+    });
+  } catch (error) {
+    console.error("Resend invitation error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to resend invitation",
     });
   }
 };

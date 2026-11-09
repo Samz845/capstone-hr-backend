@@ -15,6 +15,7 @@ import {
   inviteEmployee,
   verifyInvitation,
   completeRegistration,
+  resendInvitation,
 } from "../controllers/userController.js";
 
 // Google auth controller (separate file)
@@ -48,4 +49,10 @@ router.patch("/:id", protect, ownerShipCheck, updateUser);
 router.delete("/:id", protect, authorizeRoles("admin", "hr"), deleteUser);
 router.post("/logout", protect, logOut);
 router.post("/invite", protect, authorizeRoles("admin", "hr"), inviteEmployee);
+router.post(
+  "/resend-invitation/:id",
+  protect,
+  authorizeRoles("admin", "hr"),
+  resendInvitation,
+);
 export default router;
