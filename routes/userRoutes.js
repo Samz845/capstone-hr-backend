@@ -33,6 +33,8 @@ const router = express.Router();
 router.post("/register", createAdmin);
 router.post("/login", loginUser);
 router.post("/google", googleAuth);
+router.get("/invitation/:token", verifyInvitation);
+router.post("/complete-registration", completeRegistration);
 
 /**
  * ===============================
@@ -42,8 +44,6 @@ router.post("/google", googleAuth);
 router.get("/", protect, authorizeRoles("admin", "hr"), getUsersWithOverview);
 router.get("/admin", protect, authorizeRoles("admin", "hr"), getAllUsers);
 router.get("/me", protect, getMe);
-router.get("/invitation/:token", verifyInvitation);
-router.post("/complete-registration", completeRegistration);
 router.get("/:id", protect, authorizeRoles("admin", "hr"), getUserById);
 router.patch("/:id", protect, ownerShipCheck, updateUser);
 router.delete("/:id", protect, authorizeRoles("admin", "hr"), deleteUser);

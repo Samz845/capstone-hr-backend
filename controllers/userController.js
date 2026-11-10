@@ -881,7 +881,7 @@ export const resendInvitation = async (req, res) => {
 
     await employee.save();
 
-    const invitationLink = `${process.env.CLIENT_URL}/accept-invite/${rawToken}`;
+    const invitationLink = `${process.env.Client_URL}/accept-invite/${rawToken}`;
 
     console.log("Resent invitation link:", invitationLink);
 
